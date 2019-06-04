@@ -282,6 +282,10 @@ if __name__ == "__main__":
         if not word:
             continue
 
+        # wait until dict_cache is fully loaded
+        while dict_cache is None:
+            time.sleep(0.1)
+
         try:
             explanation = lookup(word, dict_cache)
         except:
