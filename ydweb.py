@@ -15,6 +15,7 @@ from threading import Thread
 
 from prompt_toolkit import prompt
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.styles import Style
 
 
 def get_root():
@@ -109,11 +110,9 @@ def lookup(word, dict_cache):
     verbose_level = word.count('!')
     word = word.replace('!', '').lower()
 
-    is_new_word = False
     if word in dict_cache:
         results = dict_cache[word]
     else:
-        is_new_word = True
         results = search(word)
         dict_cache[word] = results
 
@@ -140,12 +139,12 @@ def lookup(word, dict_cache):
     if len(s) == 0:
         error_typo = results["typo"]
         if len(error_typo) == 0:
-            return None, None
+            return None
         
         s = error_typo
 
     s += '\n' + ('=' * 64) + '\n'
-    return s, is_new_word
+    return s
 
 
 def search_and_cache(i, N, word, dict_cache):
@@ -210,7 +209,7 @@ def get_args():
 
     cfg = parser.parse_args()
     return cfg
-    
+
 
 
 if __name__ == "__main__":
@@ -219,13 +218,60 @@ if __name__ == "__main__":
         cache_wordlist(cfg.wordlist, cfg.jobs)
         sys.exit(0)
 
-    # interactive word lookup
-    history = getFileHistory()
-    dict_cache = get_dict_cache()
 
+    # start a thread that takes care of dict_cache
+    dict_cache = None
+    lastDictSize = None
+    def update_dict_cache():
+        global dict_cache
+        global lastDictSize
+
+        dict_cache = get_dict_cache()
+        lastDictSize = len(dict_cache)
+
+        while True:
+            time.sleep(2)
+            if len(dict_cache) == lastDictSize:
+                continue
+
+            save_dict_cache(dict_cache)
+            lastDictSize = len(dict_cache)
+
+
+    t = Thread(target=update_dict_cache)
+    t.daemon = True
+    t.start()
+
+
+    # arguments for prompt
+    history = getFileHistory()
+    style = Style.from_dict({
+        'bottom-toolbar':      'fg:#333333',
+        'bottom-toolbar.text': 'bg:#20B2AA',
+    })
+
+    def get_bottom_toolbar():
+        if lastDictSize is None:
+            toolbar = [("", "[Dict] Loading...")]
+        else:
+            toolbar = [
+                ("", "[Dict] "),
+                ("bg:#aaaaaa", "%d/%d" % (lastDictSize, len(dict_cache))),
+                ("", " entries")
+            ]
+
+        return toolbar
+
+
+    # interactive word lookup
     while True:
         try:
-            word = prompt('> ', history=history)
+            word = prompt('> ', 
+                history=history,
+                bottom_toolbar=get_bottom_toolbar,
+                style=style,
+                refresh_interval=0.5
+            )
         except KeyboardInterrupt:
             continue
         except EOFError:
@@ -237,7 +283,7 @@ if __name__ == "__main__":
             continue
 
         try:
-            explanation, is_new_word = lookup(word, dict_cache)
+            explanation = lookup(word, dict_cache)
         except:
             msg = str(sys.exc_info()[1])
             print(msg)
@@ -248,7 +294,4 @@ if __name__ == "__main__":
             continue
 
         print(explanation)
-        
-        if is_new_word:
-            save_dict_cache(dict_cache)
 
