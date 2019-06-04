@@ -6,7 +6,8 @@
 
 - [x] Basic dictionary search.
 - [x] Verbose levels with exclamation marks `!`.
-- [ ] Cache crawled contents.
+- [x] Cache crawled contents.
+- [x] Search and cache wordlist in parallel.
 
 ## Dependencies
 
