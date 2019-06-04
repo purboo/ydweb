@@ -105,17 +105,17 @@ def search(word):
     return results
     
 
-def lookup(word):
+def lookup(word, dict_cache):
     verbose_level = word.count('!')
     word = word.replace('!', '').lower()
 
-    dict_cache = get_dict_cache()
+    is_new_word = False
     if word in dict_cache:
         results = dict_cache[word]
     else:
+        is_new_word = True
         results = search(word)
         dict_cache[word] = results
-        save_dict_cache(dict_cache)
 
     s = ''
     basic_translate = results["basic"]
@@ -140,12 +140,12 @@ def lookup(word):
     if len(s) == 0:
         error_typo = results["typo"]
         if len(error_typo) == 0:
-            return None
+            return None, None
         
         s = error_typo
 
     s += '\n' + ('=' * 64) + '\n'
-    return s
+    return s, is_new_word
 
 
 def search_and_cache(i, N, word, dict_cache):
@@ -221,6 +221,7 @@ if __name__ == "__main__":
 
     # interactive word lookup
     history = getFileHistory()
+    dict_cache = get_dict_cache()
 
     while True:
         try:
@@ -236,7 +237,7 @@ if __name__ == "__main__":
             continue
 
         try:
-            explanation = lookup(word)
+            explanation, is_new_word = lookup(word, dict_cache)
         except:
             msg = str(sys.exc_info()[1])
             print(msg)
@@ -247,4 +248,7 @@ if __name__ == "__main__":
             continue
 
         print(explanation)
+        
+        if is_new_word:
+            save_dict_cache(dict_cache)
 
