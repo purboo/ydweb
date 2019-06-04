@@ -175,7 +175,7 @@ def cache_wordlist(f_wordlist, jobs):
     while jobs_todo or jobs_running:
         jobs_running = [j for j in jobs_running if j.is_alive()]
 
-        n = cfg.jobs - len(jobs_running)
+        n = jobs - len(jobs_running)
         for t in jobs_todo[:n]:
             t.daemon = True
             t.start()
