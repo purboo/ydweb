@@ -8,7 +8,7 @@
 - [x] Verbose levels with exclamation marks `!`.
 - [x] Cache crawled contents.
 - [x] Search and cache wordlist in parallel.
-- [ ] Offline dictionaries.
+- [x] Offline dictionaries.
 
 ## Dependencies
 
