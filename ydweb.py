@@ -44,6 +44,9 @@ def get_basic_translation(pq):
     if pq('.additional'):
         s += '\n' + pq('.additional').text()
 
+    if s.find('添加释义') >= 0:
+        s = ''
+
     return s
 
 
@@ -63,6 +66,16 @@ def get_typo(pq):
     return pq('.error-typo').text()
 
 
+def load_dict(path):
+    data = zlib.decompress(open(path, 'rb').read())
+    return pickle.loads(data)
+
+
+def dump_dict(path, d):
+    data = zlib.compress(pickle.dumps(d))
+    open(path, 'wb').write(data)
+
+
 def get_cache_path():
     d = get_root()
     path = os.path.join(d, "dict-cache.pkl")
@@ -74,15 +87,29 @@ def get_dict_cache():
     if not os.path.exists(path):
         return {}
 
-    data = zlib.decompress(open(path, 'rb').read())
-    dict_cache = pickle.loads(data)
-    return dict_cache
+    return load_dict(path)
 
 
 def save_dict_cache(dict_cache):
     path = get_cache_path()
-    data = zlib.compress(pickle.dumps(dict_cache))
-    open(path, 'wb').write(data)
+    dump_dict(path, dict_cache)
+
+
+def get_sys_dict():
+    t = os.path.abspath(os.path.realpath(__file__))
+    d = os.path.join(os.path.dirname(t), "dict")
+
+    sys_dict = {}
+
+    path_eng = os.path.join(d, "eng.pkl")
+    if os.path.exists(path_eng):
+        sys_dict.update(load_dict(path_eng))
+
+    path_chn = os.path.join(d, "chn.pkl")
+    if os.path.exists(path_chn):
+        sys_dict.update(load_dict(path_chn))
+
+    return sys_dict
 
 
 def search(word):
@@ -106,12 +133,14 @@ def search(word):
     return results
     
 
-def lookup(word, dict_cache):
+def lookup(word, dict_cache, dict_sys):
     verbose_level = word.count('!')
     word = word.replace('!', '').lower()
 
     if word in dict_cache:
         results = dict_cache[word]
+    elif word in dict_sys:
+        results = dict_sys[word]
     else:
         results = search(word)
         dict_cache[word] = results
@@ -147,27 +176,34 @@ def lookup(word, dict_cache):
     return s
 
 
-def search_and_cache(i, N, word, dict_cache):
+def search_and_cache(i, N, word, dict_new):
     print("Job [%d/%d: %s] is running..." % (i, N, word))
     results = search(word)
-    dict_cache[word] = results
+    dict_new[word] = results
     print("Job [%d/%d: %s] has completed!" % (i, N, word))
 
 
-def cache_wordlist(f_wordlist, jobs):
+def cache_wordlist(f_wordlist, jobs, save_to=None):
     t = open(f_wordlist).read().split("\n")
     t = [w.strip() for w in t]
     wordlist = [w.lower() for w in t if len(w) > 0]
     N = len(wordlist)
 
+    dict_new = {}
     dict_cache = get_dict_cache()
+    dict_sys = get_sys_dict()
 
     jobs_todo = []
     for i, word in enumerate(wordlist):
         if word in dict_cache:
+            dict_new[word] = dict_cache[word]
             continue
 
-        t = Thread(target=search_and_cache, args=(i+1, N, word, dict_cache))
+        if word in dict_sys:
+            dict_new[word] = dict_sys[word]
+            continue
+
+        t = Thread(target=search_and_cache, args=(i+1, N, word, dict_new))
         jobs_todo.append(t)
 
     jobs_running = []
@@ -186,8 +222,13 @@ def cache_wordlist(f_wordlist, jobs):
 
         if time.time() - lastUpdateTimestamp > 60:
             lastUpdateTimestamp = time.time()
-            save_dict_cache(dict_cache)
-            print("Dictionary cache has been updated.")
+
+            if save_to:
+                dump_dict(save_to, dict_new)
+                print("Dictionary has been updated.")
+            else:
+                save_dict_cache({**dict_cache, **dict_new})
+                print("Dictionary cache has been updated.")
 
 
 def get_args():
@@ -203,6 +244,10 @@ def get_args():
         help="search and cache words in a text file with each word per line"
     )
 
+    parser.add_argument("--save-to", 
+        help="path to save the crawled dictionary"
+    )
+
     parser.add_argument("--jobs", type=int, default=os.cpu_count(),
         help="number of jobs to search and cache words in parallel"
     )
@@ -215,19 +260,23 @@ def get_args():
 if __name__ == "__main__":
     cfg = get_args()
     if cfg.wordlist:
-        cache_wordlist(cfg.wordlist, cfg.jobs)
+        cache_wordlist(cfg.wordlist, cfg.jobs, cfg.save_to)
         sys.exit(0)
 
 
     # start a thread that takes care of dict_cache
+    dict_sys = None
     dict_cache = None
     lastDictSize = None
     def update_dict_cache():
+        global dict_sys
         global dict_cache
         global lastDictSize
 
         dict_cache = get_dict_cache()
         lastDictSize = len(dict_cache)
+
+        dict_sys = get_sys_dict()
 
         while True:
             time.sleep(2)
@@ -251,13 +300,24 @@ if __name__ == "__main__":
     })
 
     def get_bottom_toolbar():
-        if lastDictSize is None:
-            toolbar = [("", "[Dict] Loading...")]
+        toolbar = [("bg:#00aa00", "[System] ")]
+        if dict_sys is None:
+            toolbar += [("", "Loading...")]
         else:
-            toolbar = [
-                ("", "[Dict] "),
-                ("bg:#aaaaaa", "%d/%d" % (lastDictSize, len(dict_cache))),
+            toolbar += [
+                ("bg:#aaaaaa", "%d" % len(dict_sys)),
                 ("", " entries")
+            ]
+
+        toolbar += [("bg:#00aa00", "        [User] ")]
+        if lastDictSize is None:
+            toolbar += [("", "Loading...")]
+        else:
+            toolbar += [
+                ("bg:#aaaaaa", "%d" % len(dict_cache)),
+                ("", " entries ("),
+                ("bg:#aaaaaa", "%d" % lastDictSize),
+                ("", " cached)")
             ]
 
         return toolbar
@@ -287,7 +347,7 @@ if __name__ == "__main__":
             time.sleep(0.1)
 
         try:
-            explanation = lookup(word, dict_cache)
+            explanation = lookup(word, dict_cache, dict_sys)
         except:
             msg = str(sys.exc_info()[1])
             print(msg)
