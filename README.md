@@ -1,6 +1,6 @@
 # YDWeb: Console-Based Youdao Dictionary
 
-`ydweb` is a console-based dictionary with contents crawled from the youdao website. No APIs are required.
+`YDWeb` is a console-based dictionary with contents crawled from the youdao website. **No APIs are required**. Moreover, with the offline dictionaries which contains common English/Chinese words, most of the time lookup can be instant.
 
 ## To-Do List
 

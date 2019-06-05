@@ -343,7 +343,7 @@ if __name__ == "__main__":
             continue
 
         # wait until dict_cache is fully loaded
-        while dict_cache is None:
+        while dict_cache is None or dict_sys is None:
             time.sleep(0.1)
 
         try:
