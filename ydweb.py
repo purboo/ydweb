@@ -16,6 +16,7 @@ from threading import Thread
 from prompt_toolkit import prompt
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.styles import Style
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 
 
 def get_root():
@@ -330,6 +331,7 @@ if __name__ == "__main__":
                 history=history,
                 bottom_toolbar=get_bottom_toolbar,
                 style=style,
+                auto_suggest=AutoSuggestFromHistory(),
                 refresh_interval=0.5
             )
         except KeyboardInterrupt:
